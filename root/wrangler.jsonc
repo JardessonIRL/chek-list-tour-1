@@ -1,5 +1,5 @@
 {
-  "name": "chek-list-tour",
+  "name": "chek-list-tour-1",
   "compatibility_date": "2026-07-15",
   "main": "src/index.js",
   "assets": {
@@ -14,4 +14,3 @@
     }
   ]
 }
-
