@@ -698,7 +698,7 @@ async function pollForUpdates(){
 
 function startPolling(){
   if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(pollForUpdates, 4000);
+  pollTimer = setInterval(pollForUpdates, 1500);
 }
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) pollForUpdates();
