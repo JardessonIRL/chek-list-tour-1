@@ -237,6 +237,8 @@ let tickColIndex = -1;
 let qtyColIndex = -1;
 let rowKeys = [];
 let allTicks = {};
+let rowRefs = [];
+let pollTimer = null;
 
 const fileInput = document.getElementById('fileInput');
 const dropZone = document.getElementById('dropZone');
@@ -360,7 +362,10 @@ async function applyParsedData(parsedHeaders, parsedRows, displayName){
   setupColumnSelects();
   buildKeys();
   const ok = await saveDataset();
-  if (ok) renderTable();
+  if (ok){
+    renderTable();
+    startPolling();
+  }
 }
 
 function setupColumnSelects(presetTickIndex, presetQtyIndex){
@@ -520,6 +525,7 @@ searchInput.addEventListener('input', applySearchFilter);
 function renderTable(){
   const table = document.getElementById('dataTable');
   table.innerHTML = '';
+  rowRefs = [];
 
   const thead = document.createElement('thead');
   const trh = document.createElement('tr');
@@ -544,11 +550,14 @@ function renderTable(){
     if (isComplete) tr.classList.add('done');
     tr.setAttribute('data-search', row.map(c => String(c ?? '')).join(' ').toLowerCase());
 
+    const ref = { tr, expected, control: null, td: null };
+
     row.forEach((cell, ci) => {
       const td = document.createElement('td');
       td.setAttribute('data-label', headers[ci]);
       if (ci === tickColIndex){
         td.classList.add('tick-cell');
+        ref.td = td;
 
         if (expected <= 1){
           const label = document.createElement('label');
@@ -584,6 +593,7 @@ function renderTable(){
             }
             updateProgress();
           });
+          ref.control = input;
         } else {
           const wrap = document.createElement('div');
           wrap.className = 'qty-input-wrap';
@@ -628,6 +638,7 @@ function renderTable(){
             updateProgress();
           };
           numInput.addEventListener('change', commitQty);
+          ref.control = numInput;
         }
       } else {
         td.textContent = cell;
@@ -635,11 +646,63 @@ function renderTable(){
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
+    rowRefs.push(ref);
   });
 
   updateProgress();
   applySearchFilter();
 }
+
+function applyRemoteState(newTicks){
+  let changed = false;
+  rows.forEach((row, ri) => {
+    const key = rowKeys[ri];
+    const incoming = newTicks[key] || { qty: 0, date: '' };
+    const current = allTicks[key] || { qty: 0, date: '' };
+    if (incoming.qty === current.qty && incoming.date === current.date) return;
+
+    const ref = rowRefs[ri];
+    if (!ref) { allTicks[key] = incoming; changed = true; return; }
+    if (document.activeElement === ref.control) return; // don't clobber active typing
+
+    allTicks[key] = incoming;
+    changed = true;
+
+    const isComplete = incoming.qty >= ref.expected;
+    ref.tr.classList.toggle('done', isComplete);
+
+    if (ref.control.type === 'checkbox'){
+      ref.control.checked = incoming.qty >= 1;
+    } else {
+      ref.control.value = String(incoming.qty);
+      ref.control.classList.toggle('full', isComplete);
+    }
+
+    const existingDate = ref.td.querySelector('.stamp-date');
+    if (existingDate) existingDate.remove();
+    if (incoming.qty > 0 && incoming.date){
+      const dateEl = document.createElement('span');
+      dateEl.className = 'stamp-date';
+      dateEl.textContent = incoming.date;
+      ref.td.appendChild(dateEl);
+    }
+  });
+  if (changed) updateProgress();
+}
+
+async function pollForUpdates(){
+  if (document.hidden) return;
+  const state = await loadState();
+  if (state && state.ticks) applyRemoteState(state.ticks);
+}
+
+function startPolling(){
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollForUpdates, 4000);
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) pollForUpdates();
+});
 
 resetBtn.addEventListener('click', async () => {
   if (!confirm('This clears every check mark and quantity saved here (for everyone using this page). Continue?')) return;
@@ -669,6 +732,7 @@ async function init(){
     }
     buildKeys();
     renderTable();
+    startPolling();
   } else if (isAdmin){
     uploadArea.style.display = 'block';
   } else {
