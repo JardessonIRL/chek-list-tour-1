@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Check List Tour</title>
+<title>checktourup</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
@@ -112,7 +112,20 @@
   .stamp-mark svg{ width: 16px; height:16px; opacity: 0; transform: scale(0.5); transition: opacity 0.12s ease, transform 0.12s ease; }
   .stamp-box input:checked + .stamp-mark svg{ opacity: 1; transform: scale(1); }
   .stamp-date{ display:block; font-size: 10px; color: var(--ink-soft); margin-top: 2px; font-family: 'Courier New', monospace; }
-  .qty-input-wrap{ display:flex; align-items:center; justify-content:center; gap: 4px; }
+  .qty-input-wrap{ display:flex; align-items:center; justify-content:center; gap: 6px; }
+  .qty-btn{
+    width: 26px; height: 26px; border-radius: 5px; border: 1px solid var(--board-dark);
+    background: var(--card); color: var(--ink); font-size: 16px; line-height: 1;
+    cursor: pointer; display:flex; align-items:center; justify-content:center;
+    font-family: 'Courier New', monospace; user-select: none;
+  }
+  .qty-btn:hover:not(:disabled){ background: var(--paper-line); }
+  .qty-btn:disabled{ opacity: 0.35; cursor: default; }
+  .qty-value{
+    min-width: 22px; text-align:center; font-size: 14px; font-weight: bold;
+    font-family: 'Courier New', monospace; color: var(--ink);
+  }
+  .qty-value.full{ color: var(--stamp-green); }
   .qty-input{
     width: 52px; padding: 6px 4px; text-align:center; font-size: 14px;
     border: 2px solid var(--board-dark); border-radius: 5px; font-family: 'Courier New', monospace;
@@ -124,6 +137,23 @@
   .footer-note code{ background: var(--paper-line); padding: 1px 5px; border-radius: 3px; }
   .progress-line{ font-family: 'Courier New', monospace; font-size: 13px; color: var(--ink-soft); margin-bottom: 14px; }
   .progress-line strong{ color: var(--stamp-green); }
+  .all-done-banner{
+    background: var(--stamp-green-bg);
+    border: 1px solid var(--stamp-green);
+    color: var(--stamp-green);
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: bold;
+    text-align: center;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 14px;
+    animation: popIn 0.25s ease;
+  }
+  @keyframes popIn{
+    from{ transform: scale(0.9); opacity: 0; }
+    to{ transform: scale(1); opacity: 1; }
+  }
 
   @media (max-width: 700px){
     body{ padding: 20px 8px 60px; }
@@ -152,18 +182,24 @@
       justify-content: space-between; align-items: flex-start; gap: 14px;
       font-size: 15px; word-break: break-word;
     }
-    tbody td:not(.tick-cell)::before{
+    tbody td:not(.tick-cell)::before, tbody td.tick-cell-qty::before{
       content: attr(data-label); color: var(--ink-soft); font-size: 11px;
       text-transform: uppercase; letter-spacing: 0.4px; font-family: 'Courier New', monospace;
       flex-shrink: 0; padding-top: 2px;
     }
-    td.tick-cell{ position: absolute; top: 12px; right: 12px; width: auto; padding: 0; }
+    tbody tr:not(.qty-row){ padding: 14px 100px 14px 16px; }
+    tbody tr.qty-row{ padding: 14px 16px; }
+    td.tick-cell:not(.tick-cell-qty){ position: absolute; top: 12px; right: 12px; width: auto; padding: 0; }
+    td.tick-cell-qty{ padding: 5px 0; }
     .stamp-box{ width: 46px; height: 46px; }
     .stamp-mark{ width: 40px; height: 40px; border-width: 2.5px; }
     .stamp-mark svg{ width: 22px; height: 22px; }
     .stamp-date{ position: absolute; top: 50px; right: 0; white-space: nowrap; }
-    .qty-input-wrap{ flex-direction: column; }
-    .qty-input{ width: 56px; padding: 8px 4px; font-size: 16px; }
+    .tick-cell-qty .stamp-date{ position: static; display: block; text-align: right; }
+    .qty-input-wrap{ flex-direction: row; gap: 8px; align-items: center; }
+    .qty-btn{ width: 34px; height: 34px; font-size: 20px; }
+    .qty-value{ font-size: 16px; min-width: 26px; }
+    .qty-total{ font-size: 12px; }
     .progress-line{ font-size: 12px; margin-bottom: 12px; }
   }
 </style>
@@ -175,7 +211,7 @@
     <rect x="55" y="14" width="30" height="20" rx="6" fill="#C9BFA5" stroke="#8B8168" stroke-width="2"/>
   </svg>
   <div class="board">
-    <h1>Check List Tour</h1>
+    <h1>Check List Tour — Thursday</h1>
     <p class="subtitle" id="subtitle">Import the sheet, pick the column to check off, and search anything inside it.</p>
 
     <div id="uploadArea" style="display:none;">
@@ -214,11 +250,14 @@
           <circle cx="11" cy="11" r="7"/>
           <path d="M21 21l-4.35-4.35" stroke-linecap="round"/>
         </svg>
-        <input type="text" class="search-input" id="searchInput" placeholder="Search anything in the sheet…">
+        <input type="text" class="search-input" id="searchInput" inputmode="numeric" pattern="[0-9]*" placeholder="Search anything in the sheet…">
       </div>
       <div class="search-count" id="searchCount"></div>
 
       <div class="progress-line" id="progressLine"></div>
+      <div class="all-done-banner" id="allDoneBanner" style="display:none;">
+        ✓ All items checked — this list is complete!
+      </div>
 
       <div class="table-scroll">
         <table id="dataTable"></table>
@@ -239,6 +278,7 @@ let rowKeys = [];
 let allTicks = {};
 let rowRefs = [];
 let pollTimer = null;
+let saveTimers = {};
 
 const fileInput = document.getElementById('fileInput');
 const dropZone = document.getElementById('dropZone');
@@ -455,6 +495,17 @@ async function loadState(){
   }
 }
 
+async function loadTicksOnly(){
+  try{
+    const res = await fetch('/api/ticks');
+    if (!res.ok) return null;
+    return await res.json();
+  }catch(e){
+    console.error('Could not load ticks', e);
+    return null;
+  }
+}
+
 async function saveDataset(){
   try{
     const res = await fetch('/api/dataset', {
@@ -505,19 +556,32 @@ function updateProgress(){
     if (done >= expected) doneRows++;
   });
   progressLine.innerHTML = '<strong>' + doneRows + '</strong> of ' + rows.length + ' complete';
+
+  const allDoneBanner = document.getElementById('allDoneBanner');
+  const isAllDone = rows.length > 0 && doneRows === rows.length;
+  allDoneBanner.style.display = isAllDone ? 'block' : 'none';
 }
 
 function applySearchFilter(){
   const term = searchInput.value.trim().toLowerCase();
   const trs = document.querySelectorAll('#dataTable tbody tr');
   let visible = 0;
+  let matches = 0;
   trs.forEach(tr => {
     const text = tr.getAttribute('data-search') || '';
-    const match = !term || text.includes(term);
-    tr.classList.toggle('hidden-row', !match);
-    if (match) visible++;
+    const isComplete = tr.getAttribute('data-complete') === '1';
+    const matchesTerm = !term || text.includes(term);
+    // With no search: hide completed items to keep the list light.
+    // With a search: show anything matching, even if already checked —
+    // that's how a checked item can be found again and un-checked.
+    const show = term ? matchesTerm : (matchesTerm && !isComplete);
+    tr.classList.toggle('hidden-row', !show);
+    if (show) visible++;
+    if (term && matchesTerm) matches++;
   });
-  searchCount.textContent = term ? (visible + ' of ' + rows.length + ' rows match') : '';
+  searchCount.textContent = term
+    ? (matches + ' of ' + rows.length + ' rows match')
+    : 'Checked items are hidden — search to find and undo one.';
 }
 
 searchInput.addEventListener('input', applySearchFilter);
@@ -548,6 +612,8 @@ function renderTable(){
     const done = state ? (state.qty || 0) : 0;
     const isComplete = done >= expected;
     if (isComplete) tr.classList.add('done');
+    if (expected > 1) tr.classList.add('qty-row');
+    tr.setAttribute('data-complete', isComplete ? '1' : '0');
     tr.setAttribute('data-search', row.map(c => String(c ?? '')).join(' ').toLowerCase());
 
     const ref = { tr, expected, control: null, td: null };
@@ -557,6 +623,7 @@ function renderTable(){
       td.setAttribute('data-label', headers[ci]);
       if (ci === tickColIndex){
         td.classList.add('tick-cell');
+        if (expected > 1) td.classList.add('tick-cell-qty');
         ref.td = td;
 
         if (expected <= 1){
@@ -581,8 +648,9 @@ function renderTable(){
             const newQty = input.checked ? 1 : 0;
             const dateStr = input.checked ? new Date().toLocaleDateString('en-US') : '';
             allTicks[rowKeys[ri]] = { qty: newQty, date: dateStr };
-            await saveTick(rowKeys[ri], allTicks[rowKeys[ri]]);
+            ref.lastEditAt = Date.now();
             tr.classList.toggle('done', newQty >= 1);
+            tr.setAttribute('data-complete', newQty >= 1 ? '1' : '0');
             const existingDate = td.querySelector('.stamp-date');
             if (existingDate) existingDate.remove();
             if (newQty >= 1){
@@ -592,22 +660,36 @@ function renderTable(){
               td.appendChild(dateEl);
             }
             updateProgress();
+            applySearchFilter();
+            await saveTick(rowKeys[ri], allTicks[rowKeys[ri]]);
+            refreshAfterEdit();
           });
           ref.control = input;
         } else {
           const wrap = document.createElement('div');
           wrap.className = 'qty-input-wrap';
-          const numInput = document.createElement('input');
-          numInput.type = 'number';
-          numInput.className = 'qty-input' + (done >= expected ? ' full' : '');
-          numInput.min = '0';
-          numInput.max = String(expected);
-          numInput.step = '1';
-          numInput.value = String(done);
+
+          const minusBtn = document.createElement('button');
+          minusBtn.type = 'button';
+          minusBtn.className = 'qty-btn';
+          minusBtn.textContent = '−';
+
+          const valueEl = document.createElement('span');
+          valueEl.className = 'qty-value' + (done >= expected ? ' full' : '');
+          valueEl.textContent = String(done);
+
+          const plusBtn = document.createElement('button');
+          plusBtn.type = 'button';
+          plusBtn.className = 'qty-btn';
+          plusBtn.textContent = '+';
+
           const totalLabel = document.createElement('span');
           totalLabel.className = 'qty-total';
           totalLabel.textContent = '/ ' + expected;
-          wrap.appendChild(numInput);
+
+          wrap.appendChild(minusBtn);
+          wrap.appendChild(valueEl);
+          wrap.appendChild(plusBtn);
           wrap.appendChild(totalLabel);
           td.appendChild(wrap);
           if (done >= 1 && state && state.date){
@@ -617,16 +699,24 @@ function renderTable(){
             td.appendChild(dateEl);
           }
 
-          const commitQty = async () => {
-            let val = parseInt(numInput.value, 10);
-            if (!Number.isFinite(val) || val < 0) val = 0;
-            if (val > expected) val = expected;
-            numInput.value = String(val);
-            numInput.classList.toggle('full', val >= expected);
+          let currentVal = done;
+
+          const applyQtyUI = (val) => {
+            valueEl.textContent = String(val);
+            valueEl.classList.toggle('full', val >= expected);
+            minusBtn.disabled = val <= 0;
+            plusBtn.disabled = val >= expected;
+            const isComplete = val >= expected;
+            tr.classList.toggle('done', isComplete);
+            tr.setAttribute('data-complete', isComplete ? '1' : '0');
+            applySearchFilter();
+          };
+          applyQtyUI(currentVal);
+
+          const scheduleSave = (val) => {
             const dateStr = val > 0 ? new Date().toLocaleDateString('en-US') : '';
             allTicks[rowKeys[ri]] = { qty: val, date: dateStr };
-            await saveTick(rowKeys[ri], allTicks[rowKeys[ri]]);
-            tr.classList.toggle('done', val >= expected);
+            ref.lastEditAt = Date.now();
             const existingDate = td.querySelector('.stamp-date');
             if (existingDate) existingDate.remove();
             if (val > 0){
@@ -636,9 +726,29 @@ function renderTable(){
               td.appendChild(dateEl);
             }
             updateProgress();
+            if (saveTimers[ri]) clearTimeout(saveTimers[ri]);
+            saveTimers[ri] = setTimeout(async () => {
+              await saveTick(rowKeys[ri], allTicks[rowKeys[ri]]);
+              refreshAfterEdit();
+            }, 450);
           };
-          numInput.addEventListener('change', commitQty);
-          ref.control = numInput;
+
+          minusBtn.addEventListener('click', () => {
+            if (currentVal <= 0) return;
+            currentVal -= 1;
+            applyQtyUI(currentVal);
+            scheduleSave(currentVal);
+          });
+          plusBtn.addEventListener('click', () => {
+            if (currentVal >= expected) return;
+            currentVal += 1;
+            applyQtyUI(currentVal);
+            scheduleSave(currentVal);
+          });
+
+          ref.control = wrap;
+          ref.getQtyVal = () => currentVal;
+          ref.setQtyVal = (val) => { currentVal = val; applyQtyUI(val); };
         }
       } else {
         td.textContent = cell;
@@ -664,18 +774,19 @@ function applyRemoteState(newTicks){
     const ref = rowRefs[ri];
     if (!ref) { allTicks[key] = incoming; changed = true; return; }
     if (document.activeElement === ref.control) return; // don't clobber active typing
+    if (ref.lastEditAt && Date.now() - ref.lastEditAt < 2000) return; // don't clobber a save in flight
 
     allTicks[key] = incoming;
     changed = true;
 
     const isComplete = incoming.qty >= ref.expected;
     ref.tr.classList.toggle('done', isComplete);
+    ref.tr.setAttribute('data-complete', isComplete ? '1' : '0');
 
     if (ref.control.type === 'checkbox'){
       ref.control.checked = incoming.qty >= 1;
-    } else {
-      ref.control.value = String(incoming.qty);
-      ref.control.classList.toggle('full', isComplete);
+    } else if (ref.setQtyVal){
+      ref.setQtyVal(incoming.qty);
     }
 
     const existingDate = ref.td.querySelector('.stamp-date');
@@ -687,18 +798,27 @@ function applyRemoteState(newTicks){
       ref.td.appendChild(dateEl);
     }
   });
-  if (changed) updateProgress();
+  if (changed){
+    updateProgress();
+    applySearchFilter();
+  }
 }
 
 async function pollForUpdates(){
   if (document.hidden) return;
-  const state = await loadState();
-  if (state && state.ticks) applyRemoteState(state.ticks);
+  const data = await loadTicksOnly();
+  if (data && data.ticks) applyRemoteState(data.ticks);
+}
+
+async function refreshAfterEdit(){
+  const data = await loadTicksOnly();
+  if (data && data.ticks) applyRemoteState(data.ticks);
 }
 
 function startPolling(){
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(pollForUpdates, 1500);
+  // No more timer-based polling — refresh happens right after a check
+  // or quantity change instead (see refreshAfterEdit below), and when the
+  // tab regains focus. This avoids constant background requests.
 }
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) pollForUpdates();
